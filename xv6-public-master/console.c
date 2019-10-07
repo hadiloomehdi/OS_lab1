@@ -220,8 +220,9 @@ struct {
   uint write;  // Write index
   uint edit;  // Edit index
   uint last;  // Length buf
+  // uint shift; // Shift flag
 } input;
-// input.last
+
 #define C(x)  ((x)-'@')  // Control-x
 
 int nextIndex(int ind)
@@ -234,14 +235,14 @@ int prevIndex(int ind)
   return (ind - 1 + INPUT_BUF) %  INPUT_BUF;
 }
 
-// suppose cursor is in startIndex
+
 void writeBuffer (uint startIndex, uint endIndex) {
   uint currentIndex = startIndex;
   while (currentIndex != endIndex) {
     cgaputc(input.buf[currentIndex]);
     currentIndex = nextIndex(currentIndex);
   }
-  changeCursor(-(endIndex - startIndex));  // backward cusor to startIndex
+  changeCursor(-(endIndex - startIndex));
 }
 
 void moveCursorToStartLine () {
@@ -249,21 +250,34 @@ void moveCursorToStartLine () {
   input.edit = input.write;
 }
 
+void nextLine () {
+    changeCursor(input.last - input.edit);
+    input.last = nextIndex(input.last);
+    input.buf[input.last] = '\n';
+    // cgaputc('\n');
+    consputc('\n');
+    input.edit = input.last;
+    input.write = input.last;   
+}
 
 void typeCharecter (char c) {
+  if (c == '\n') {
+    nextLine();
+    return;
+  }
   input.last = nextIndex(input.last);
   uint currentIndex = input.last;
-  input.buf[input.edit] = c;
   while (currentIndex != input.edit) {
     input.buf[currentIndex] = input.buf[prevIndex(currentIndex)];
     currentIndex = prevIndex(currentIndex);
   }
+  input.buf[input.edit] = c;
   writeBuffer(input.edit, input.last);
   input.edit = nextIndex(input.edit);
   changeCursor(1);
 }
 
-void moveCursorToEndLine () {
+void goEndLine () {
   changeCursor (input.last - input.edit);
   input.edit = input.last;
 
@@ -300,8 +314,6 @@ consoleintr(int (*getc)(void))
 
   acquire(&cons.lock);
   while((c = getc()) >= 0){
-    // if (input.edit == input.write)
-    //     typeCharecter(46);
     switch(c){
     case C('P'):  // Process listing.
       // procdump() locks cons.lock indirectly; invoke later
@@ -313,21 +325,32 @@ consoleintr(int (*getc)(void))
     case C('H'): case '\x7f':  // Backspace
       if(input.edit != input.write) {
         eraseCharacter();
+        // else {
+        //   input.edit--;
+        //   input.last--;
+        //   conspu tc(+ 1BACKSPACE);
+        // }
       }
       break;
     case ShiftKey('['):
         moveCursorToStartLine ();
       break;
     case ShiftKey(']'):
-        moveCursorToEndLine();
+        goEndLine();
       break;
     default:
-      if(c != 0 && input.edit-input.read < INPUT_BUF) {
-        typeCharecter(c);
+      if(c != 0 && input.last-input.read < INPUT_BUF) {
+        
+        // if (c == 'o'){
+        //   cgaputc('O');
+        //   break;
+        // }
+          
+
         c = (c == '\r') ? '\n' : c;
+        typeCharecter(c);
         if(c == '\n' || c == C('D') || input.last == input.read+INPUT_BUF){
-          input.write = input.last;
-          input.edit = input.last;
+          // changeCursor(input.last - input.edit);
           wakeup(&input.read);
         }
       }
@@ -404,4 +427,3 @@ consoleinit(void)
 
   ioapicenable(IRQ_KBD, 0);
 }
-
