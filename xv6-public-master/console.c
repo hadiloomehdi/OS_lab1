@@ -220,7 +220,6 @@ struct {
   uint write;  // Write index
   uint edit;  // Edit index
   uint last;  // Length buf
-  // uint shift; // Shift flag
 } input;
 // input.last
 #define C(x)  ((x)-'@')  // Control-x
@@ -235,14 +234,14 @@ int prevIndex(int ind)
   return (ind - 1 + INPUT_BUF) %  INPUT_BUF;
 }
 
-
+// suppose cursor is in startIndex
 void writeBuffer (uint startIndex, uint endIndex) {
   uint currentIndex = startIndex;
   while (currentIndex != endIndex) {
     cgaputc(input.buf[currentIndex]);
     currentIndex = nextIndex(currentIndex);
   }
-  changeCursor(-(endIndex - startIndex));
+  changeCursor(-(endIndex - startIndex));  // backward cusor to startIndex
 }
 
 void moveCursorToStartLine () {
@@ -264,7 +263,7 @@ void typeCharecter (char c) {
   changeCursor(1);
 }
 
-void goEndLine () {
+void moveCursorToEndLine () {
   changeCursor (input.last - input.edit);
   input.edit = input.last;
 
@@ -301,6 +300,8 @@ consoleintr(int (*getc)(void))
 
   acquire(&cons.lock);
   while((c = getc()) >= 0){
+    // if (input.edit == input.write)
+    //     typeCharecter(46);
     switch(c){
     case C('P'):  // Process listing.
       // procdump() locks cons.lock indirectly; invoke later
@@ -312,18 +313,13 @@ consoleintr(int (*getc)(void))
     case C('H'): case '\x7f':  // Backspace
       if(input.edit != input.write) {
         eraseCharacter();
-        // else {
-        //   input.edit--;
-        //   input.last--;
-        //   conspu tc(+ 1BACKSPACE);
-        // }
       }
       break;
     case ShiftKey('['):
         moveCursorToStartLine ();
       break;
     case ShiftKey(']'):
-        goEndLine();
+        moveCursorToEndLine();
       break;
     default:
       if(c != 0 && input.edit-input.read < INPUT_BUF) {
