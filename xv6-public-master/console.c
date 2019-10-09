@@ -252,8 +252,8 @@ void moveCursorToStartLine () {
 
 void nextLine () {
     changeCursor(input.last - input.edit);
-    input.last = nextIndex(input.last);
     input.buf[input.last] = '\n';
+    input.last = nextIndex(input.last);
     // cgaputc('\n');
     consputc('\n');
     input.edit = input.last;
@@ -340,13 +340,6 @@ consoleintr(int (*getc)(void))
       break;
     default:
       if(c != 0 && input.last-input.read < INPUT_BUF) {
-        
-        // if (c == 'o'){
-        //   cgaputc('O');
-        //   break;
-        // }
-          
-
         c = (c == '\r') ? '\n' : c;
         typeCharecter(c);
         if(c == '\n' || c == C('D') || input.last == input.read+INPUT_BUF){
