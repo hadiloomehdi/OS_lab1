@@ -219,7 +219,8 @@ struct {
   uint read;  // Read index
   uint write;  // Write index
   uint edit;  // Edit index
-  uint last;  // Length buf
+  uint last;  // Last index
+  uint size;  // 
   // uint shift; // Shift flag
 } input;
 
@@ -227,19 +228,25 @@ struct {
 
 int nextIndex(int ind)
 {
-  return (ind + 1) % INPUT_BUF;
+  return ind + 1;
+  // return (ind + 1) % INPUT_BUF;
 }
 
 int prevIndex(int ind)
 {
-  return (ind - 1 + INPUT_BUF) %  INPUT_BUF;
+  return ind - 1;
+  // return (ind - 1 + INPUT_BUF) %  INPUT_BUF;
+}
+
+int getIndex (int ind) {
+  return ind % INPUT_BUF;
 }
 
 
 void writeBuffer (uint startIndex, uint endIndex) {
   uint currentIndex = startIndex;
   while (currentIndex != endIndex) {
-    cgaputc(input.buf[currentIndex]);
+    cgaputc(input.buf[getIndex(currentIndex)]);
     currentIndex = nextIndex(currentIndex);
   }
   changeCursor(-(endIndex - startIndex));
@@ -252,12 +259,13 @@ void moveCursorToStartLine () {
 
 void nextLine () {
     changeCursor(input.last - input.edit);
-    input.buf[input.last] = '\n';
+    input.buf[getIndex(input.last)] = '\n';
     input.last = nextIndex(input.last);
     // cgaputc('\n');
     consputc('\n');
     input.edit = input.last;
-    input.write = input.last;   
+    input.write = input.last;
+    input.size = 0;
 }
 
 void typeCharecter (char c) {
@@ -265,13 +273,14 @@ void typeCharecter (char c) {
     nextLine();
     return;
   }
+  input.size++;
   input.last = nextIndex(input.last);
   uint currentIndex = input.last;
   while (currentIndex != input.edit) {
-    input.buf[currentIndex] = input.buf[prevIndex(currentIndex)];
+    input.buf[getIndex(currentIndex)] = input.buf[getIndex(prevIndex(currentIndex))];
     currentIndex = prevIndex(currentIndex);
   }
-  input.buf[input.edit] = c;
+  input.buf[getIndex(input.edit)] = c;
   writeBuffer(input.edit, input.last);
   input.edit = nextIndex(input.edit);
   changeCursor(1);
@@ -280,7 +289,6 @@ void typeCharecter (char c) {
 void goEndLine () {
   changeCursor (input.last - input.edit);
   input.edit = input.last;
-
 }
 
 void eraseCharacter () {
@@ -288,7 +296,7 @@ void eraseCharacter () {
   uint currentIndex = input.edit;
   changeCursor(-1);
   while (currentIndex + 1 != input.last) {
-    input.buf[currentIndex] = input.buf[nextIndex(currentIndex)];
+    input.buf[getIndex(currentIndex)] = input.buf[getIndex(nextIndex(currentIndex))];
     cgaputc(input.buf[currentIndex]);
     currentIndex = nextIndex(currentIndex);
   }
@@ -296,6 +304,7 @@ void eraseCharacter () {
   cgaputc(BACKSPACE);
   input.last--;
   changeCursor(-(input.last - input.edit));
+  input.size--;
 }
 
 void eraseAll () {
@@ -303,6 +312,7 @@ void eraseAll () {
   input.edit = input.last;
   while (input.write != input.last)
     eraseCharacter();
+  input.size = 0;
 }
 
 
@@ -339,10 +349,11 @@ consoleintr(int (*getc)(void))
         goEndLine();
       break;
     default:
-      if(c != 0 && input.last-input.read < INPUT_BUF) {
+      if(c != 0 && (input.last - input.read < INPUT_BUF)) {
         c = (c == '\r') ? '\n' : c;
         typeCharecter(c);
-        if(c == '\n' || c == C('D') || input.last == input.read+INPUT_BUF){
+        if(c == '\n' || c == C('D') || input.last == input.read){
+          input.size = 0;
           // changeCursor(input.last - input.edit);
           wakeup(&input.read);
         }
@@ -374,16 +385,19 @@ consoleread(struct inode *ip, char *dst, int n)
       }
       sleep(&input.read, &cons.lock);
     }
+    
     c = input.buf[input.read++ % INPUT_BUF];
+    // input.read = nextIndex(input.read);
     if(c == C('D')){  // EOF
       if(n < target){
         // Save ^D for next time, to make sure
         // caller gets a 0-byte result.
-        input.read--;
+        input.read = prevIndex(input.read);
       }
       break;
     }
     *dst++ = c;
+    // n = prevIndex(n);
     --n;
     if(c == '\n')
       break;
