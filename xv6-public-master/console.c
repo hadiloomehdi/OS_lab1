@@ -146,9 +146,9 @@ cgaputc(int c)
   else if(c == BACKSPACE){
     if(pos > 0) --pos;
   }
-  else if(c == ShiftKey('[')) {
-    pos = pos - (pos % 80) + 2;
-  }
+  // else if(c == ShiftKey('[')) {
+  //   pos = pos - (pos % 80) + 2;
+  // } ????
   else
     crt[pos++] = (c&0xff) | 0x0700;  // black on white
 
